@@ -11,6 +11,9 @@ func main() {
 	min.Exp(big.NewInt(2), big.NewInt(129), nil)
 	max.Exp(big.NewInt(2), big.NewInt(130), nil)
 
+	println(funcS(big.NewInt(1949), big.NewInt(2089)).Text(10))
+	return
+
 	P := generatePrimeBigInt(min, max)
 	Q := generatePrimeBigInt(min, max)
 	//N := new(big.Int).Mul(P, Q)
@@ -26,8 +29,8 @@ func main() {
 
 	for e, _ = rand.Int(rand.Reader, mul); gcd.GCD(nil, nil, mul, e).Cmp(one) != 0; e, _ = rand.Int(rand.Reader, mul) {
 	}
-
-	println(e.Text(10))
+	//new(big.Int).
+	//	println(e.Text(10))
 	//println(mul.Text(10))
 	//
 	//println(N.Text(10))
