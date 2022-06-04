@@ -9,10 +9,15 @@ var zero = big.NewInt(0)
 var one = big.NewInt(1)
 var two = big.NewInt(2)
 
+type LucKey struct {
+	keyValue []byte
+	mulValue []byte
+}
+
 func generatePrimeBigInt(min, max *big.Int) *big.Int {
 	var digit *big.Int
 	diff := new(big.Int).Sub(max, min)
-	for digit, _ = rand.Int(rand.Reader, diff); !(digit.Add(digit, min)).ProbablyPrime(10); digit, _ = rand.Int(rand.Reader, diff) {
+	for digit, _ = rand.Int(rand.Reader, diff); !(digit.Add(digit, min)).ProbablyPrime(100); digit, _ = rand.Int(rand.Reader, diff) {
 	}
 	return digit
 }
@@ -103,10 +108,10 @@ func calculateLucas(n, P, m []byte) *big.Int {
 	return curr
 }
 
-func generateKeys(message []byte) (Key, Key) {
+func generateKeys(message []byte) (LucKey, LucKey) {
 	messageInternal := new(big.Int).SetBytes(message)
-	min := new(big.Int).Exp(big.NewInt(2), big.NewInt(129), nil)
-	max := new(big.Int).Exp(big.NewInt(2), big.NewInt(130), nil)
+	min := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(len(message)*4)), nil)
+	max := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(len(message)*4)+1), nil)
 
 	p := generatePrimeBigInt(min, max)
 	q := generatePrimeBigInt(min, max)
@@ -130,9 +135,9 @@ func generateKeys(message []byte) (Key, Key) {
 	S := funcS(p, q, Dp, Dq)
 
 	d := new(big.Int).ModInverse(e, S)
-	return Key{e.Bytes(), N.Bytes()}, Key{d.Bytes(), N.Bytes()}
+	return LucKey{e.Bytes(), N.Bytes()}, LucKey{d.Bytes(), N.Bytes()}
 }
 
-func encDec(key Key, message []byte) []byte {
+func encDec(key LucKey, message []byte) []byte {
 	return calculateLucas(key.keyValue, message, key.mulValue).Bytes()
 }
