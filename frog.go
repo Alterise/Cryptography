@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
 	"math/big"
 )
 
@@ -17,13 +16,10 @@ type FrogKeys struct {
 	unitSize         int
 }
 
-func newFrogKeys(keyLength int) *FrogKeys {
+func newFrog(key []byte) *FrogKeys {
 	frogKeys := new(FrogKeys)
 	frogKeys.unitSize = 16
-	//FIXME:
-	frogKeys.key = make([]byte, keyLength)
-	rand.Read(frogKeys.key)
-	//frogKeys.key = []byte{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1}
+	frogKeys.key = key
 	frogKeys.encryptRoundKeys = generateKey(frogKeys.key, EncryptOrder, frogKeys.unitSize)
 	frogKeys.decryptRoundKeys = generateKey(frogKeys.key, DecryptOrder, frogKeys.unitSize)
 	return frogKeys
@@ -92,7 +88,7 @@ func generateKey(key []byte, order int, unitSize int) [][][]byte {
 	expandedKey = new(big.Int).Xor(new(big.Int).SetBytes(expandedKey), new(big.Int).SetBytes(expandedMasterKey)).Bytes()
 	preliminaryExpandedKey := FormatExpandedKey(expandedKey, EncryptOrder)
 	IV := make([]byte, unitSize)
-	copy(IV, expandedKey[:unitSize-1])
+	copy(IV, expandedKey[:unitSize])
 	IV[0] ^= byte(len(key))
 	res := TransformEmptyText(preliminaryExpandedKey, IV, unitSize)
 	return FormatExpandedKey(res, order)
@@ -122,10 +118,15 @@ func FormatKey(key []byte) {
 	}
 }
 
-func ReverseKey(key []byte) {
-	for i := 0; i < len(key)/2; i++ {
-		key[i], key[len(key)-1-i] = key[len(key)-1-i], key[i]
+func ReverseKey(key []byte) []byte {
+	//for i := 0; i < len(key)/2; i++ {
+	//	key[i], key[len(key)-1-i] = key[len(key)-1-i], key[i]
+	//}
+	res := make([]byte, len(key))
+	for i := range key {
+		res[key[i]] = byte(i)
 	}
+	return res
 }
 
 func connectElements(permutation []byte) {
@@ -164,16 +165,14 @@ func FormatExpandedKey(key []byte, order int) [][][]byte {
 		keyComponent3 := make([]byte, 16)
 		currentId := i * 288
 		//FIXME: мб
-		copy(keyComponent1, key[currentId:currentId+15])
-		copy(keyComponent2, key[currentId+16:currentId+271])
-		copy(keyComponent3, key[currentId+272:currentId+287])
+		copy(keyComponent1, key[currentId:currentId+16])
+		copy(keyComponent2, key[currentId+16:currentId+272])
+		copy(keyComponent3, key[currentId+272:currentId+288])
 
 		FormatKey(keyComponent2)
 
 		if order == DecryptOrder {
-			//println("1 ", new(big.Int).SetBytes(keyComponent2).Text(10))
-			ReverseKey(keyComponent2)
-			//println("2 ", new(big.Int).SetBytes(keyComponent2).Text(10))
+			keyComponent2 = ReverseKey(keyComponent2)
 		}
 		FormatKey(keyComponent3)
 		connectElements(keyComponent3)
@@ -199,7 +198,7 @@ func TransformEmptyText(key [][][]byte, IV []byte, unitSize int) []byte {
 
 func EncryptCBC(buf []byte, IV []byte, roundKeys [][][]byte, iShift int, res []byte, oShift int, unitSize int) {
 	//FIXME: мб
-	copy(buf[iShift:iShift+unitSize-1], res[oShift:oShift+unitSize-1])
+	copy(buf[iShift:iShift+unitSize], res[oShift:oShift+unitSize])
 
 	for i := 0; i < unitSize; i++ {
 		res[i] ^= IV[i]

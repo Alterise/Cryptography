@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"math/big"
 )
 
@@ -17,10 +18,11 @@ func main() {
 	//elapsed := time.Since(start)
 	//log.Printf("Execution time %s", elapsed)
 
-	fk := newFrogKeys(16)
-	//FIXME: < 16
-	message := []byte{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1}
-	//rand.Read(message)
+	key := make([]byte, 125)
+	rand.Read(key)
+	fk := newFrog(key)
+	message := make([]byte, 16)
+	rand.Read(message)
 	println("Message: ", new(big.Int).SetBytes(message).Text(10))
 	enc := Encrypt(fk, message)
 	println("Encrypted: ", new(big.Int).SetBytes(enc).Text(10))
