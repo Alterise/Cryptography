@@ -21,15 +21,13 @@ func main() {
 	key := make([]byte, 125)
 	rand.Read(key)
 	fk := newFrog(key)
-	message := make([]byte, 16)
+	message := make([]byte, 32)
 	rand.Read(message)
 	println("Message: ", new(big.Int).SetBytes(message).Text(10))
+	message = addPadding(message, 16)
 	enc := Encrypt(fk, message)
 	println("Encrypted: ", new(big.Int).SetBytes(enc).Text(10))
 	dec := Decrypt(fk, enc)
+	dec = removePadding(dec)
 	println("Decrypted: ", new(big.Int).SetBytes(dec).Text(10))
-
-	ad := []byte{1, 2, 3}
-	addPadding(ad, 8)
-	println(ad)
 }

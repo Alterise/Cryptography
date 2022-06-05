@@ -218,27 +218,29 @@ func EncryptCBC(buf []byte, IV []byte, roundKeys [][][]byte, iShift int, res []b
 	}
 }
 
-func addPadding(data []byte, size int) {
-	if len(data) >= size {
-		return
+func addPadding(data []byte, size int) []byte {
+	if len(data)%size == 0 {
+		return data
 	}
-	count := size - len(data)
+	count := size - len(data)%size
 	padding := make([]byte, count)
 	for i := range padding {
 		padding[i] = byte(count)
 	}
-	data = append(data, padding...)
+	return append(data, padding...)
 }
 
-func removePadding(data []byte) {
+func removePadding(data []byte) []byte {
 	for i := len(data) - 1; i >= 0; i-- {
-		if int(data[i]) == len(data)-int(data[i]) {
+		if i == len(data)-int(data[i]) {
 			for j := i; j < len(data); j++ {
 				if data[j] != data[i] {
-					return
+					return data
 				}
 			}
 			data = data[:i]
+			break
 		}
 	}
+	return data
 }
