@@ -14,14 +14,16 @@ type FrogKeys struct {
 	key              []byte
 	encryptRoundKeys [][][]byte
 	decryptRoundKeys [][][]byte
+	unitSize         int
 }
 
 func newFrogKeys(size int) *FrogKeys {
 	frogKeys := new(FrogKeys)
 	frogKeys.key = make([]byte, size)
+	frogKeys.unitSize = size
 	rand.Read(frogKeys.key)
-	frogKeys.encryptRoundKeys = generateKey(frogKeys.key, EncryptOrder)
-	frogKeys.decryptRoundKeys = generateKey(frogKeys.key, DecryptOrder)
+	frogKeys.encryptRoundKeys = generateKey(frogKeys.key, EncryptOrder, size)
+	frogKeys.decryptRoundKeys = generateKey(frogKeys.key, DecryptOrder, size)
 	return frogKeys
 }
 
@@ -44,14 +46,54 @@ var MasterKey = []byte{
 	118, 177, 121, 180, 27, 83, 131, 26, 39, 46, 12,
 }
 
-func generateKey(key []byte, order int) [][][]byte {
+func Encrypt(keys *FrogKeys, data []byte) []byte {
+	res := make([]byte, len(data))
+	copy(res, data)
+
+	for roundNum := 0; roundNum < 8; roundNum++ {
+		for i := 0; i < keys.unitSize; i++ {
+			res[i] ^= keys.encryptRoundKeys[roundNum][0][i]
+			res[i] = keys.encryptRoundKeys[roundNum][1][res[i]]
+			if i < keys.unitSize-1 {
+				res[i+1] ^= res[i]
+				id := keys.encryptRoundKeys[roundNum][2][i]
+				res[id] ^= res[i]
+			}
+		}
+	}
+	return res
+}
+
+func Decrypt(keys *FrogKeys, data []byte) []byte {
+	res := make([]byte, len(data))
+	copy(res, data)
+
+	for roundNum := 7; roundNum >= 0; roundNum-- {
+		for i := keys.unitSize - 1; i >= 0; i-- {
+			id := keys.decryptRoundKeys[roundNum][2][i]
+			res[id] ^= res[i]
+			if i < keys.unitSize-1 {
+				res[i+1] ^= res[i]
+			}
+			res[i] = keys.decryptRoundKeys[roundNum][1][res[i]]
+			res[i] ^= keys.decryptRoundKeys[roundNum][0][i]
+
+		}
+	}
+	return res
+}
+
+func generateKey(key []byte, order int, unitSize int) [][][]byte {
 	expandedKey := expandKey(key, 2304)
 	expandedMasterKey := expandKey(MasterKey, 2304)
 	expandedKey = new(big.Int).Xor(new(big.Int).SetBytes(expandedKey), new(big.Int).SetBytes(expandedMasterKey)).Bytes()
-	preliminaryExpandedKey := FormatExpandedKey(key, EncryptOrder)
+	preliminaryExpandedKey := FormatExpandedKey(expandedKey, EncryptOrder)
 	//println(expandedKey, expandedMasterKey)
-
-	return make([][][]byte, 1)
+	IV := make([]byte, unitSize)
+	copy(IV, expandedKey[:unitSize])
+	IV[0] ^= byte(len(key))
+	res := TransformEmptyText(preliminaryExpandedKey, IV, unitSize)
+	return FormatExpandedKey(res, order)
 }
 
 func expandKey(key []byte, newSize int) []byte {
@@ -62,6 +104,107 @@ func expandKey(key []byte, newSize int) []byte {
 	return res
 }
 
-//func FormatExpandedKey(key []byte, order int) []byte {
-//
-//}
+func FormatKey(key []byte) {
+	U := make([]byte, len(key))
+	for i := range U {
+		U[i] = byte(i)
+	}
+
+	prevId := 0
+	var currentId int
+	for i := range key {
+		currentId = (prevId + int(key[i])) % len(U)
+		key[i] = U[currentId]
+		U = append(U[:currentId], U[currentId+1:]...)
+	}
+}
+
+func ReverseKey(key []byte) {
+	for i := 0; i < len(key)/2; i++ {
+		key[i], key[len(key)-1-i] = key[len(key)-1-i], key[i]
+	}
+}
+
+func connectElements(key []byte) {
+	isConnected := make([]bool, len(key))
+	for i := range isConnected {
+		isConnected[i] = false
+	}
+
+	id := 0
+	for {
+		isConnected[id] = true
+		if isConnected[key[id]] {
+			nextNotConnected := -1
+			for i := range isConnected {
+				if isConnected[i] == false {
+					nextNotConnected = i
+					break
+				}
+			}
+			if nextNotConnected == -1 {
+				key[id] = 0
+				break
+			} else {
+				key[id] = byte(nextNotConnected)
+			}
+		}
+		id = int(key[id])
+	}
+}
+
+func FormatExpandedKey(key []byte, order int) [][][]byte {
+	res := make([][][]byte, 8)
+	for i := 0; i < 8; i++ {
+		keyComponent1 := make([]byte, 16)
+		keyComponent2 := make([]byte, 256)
+		keyComponent3 := make([]byte, 16)
+		currentId := i * 288
+		copy(keyComponent1, key[currentId:currentId+15])
+		copy(keyComponent2, key[currentId+16:currentId+271])
+		copy(keyComponent3, key[currentId+272:currentId+287])
+		FormatKey(keyComponent2)
+		if order == DecryptOrder {
+			ReverseKey(keyComponent2)
+		}
+		FormatKey(keyComponent3)
+		connectElements(keyComponent3)
+		for j := 0; j < 16; j++ {
+			if int(keyComponent3[j]) == j+1 {
+				keyComponent3[j] = byte((j + 2) % 16)
+			}
+		}
+		res[i] = [][]byte{keyComponent1, keyComponent2, keyComponent3}
+	}
+	return res
+}
+
+func TransformEmptyText(key [][][]byte, IV []byte, unitSize int) []byte {
+	unitCount := 2304 / unitSize
+	buf := make([]byte, unitSize)
+	res := make([]byte, unitSize)
+	for i := 0; i <= unitCount; i++ {
+		EncryptCBC(buf, IV, key, 0, res, i*unitSize, unitSize)
+	}
+	return res
+}
+
+func EncryptCBC(buf []byte, IV []byte, roundKeys [][][]byte, iShift int, res []byte, oShift int, unitSize int) {
+	copy(buf[iShift:iShift+unitSize], res[oShift:oShift+unitSize])
+
+	for i := 0; i < unitSize; i++ {
+		res[i] ^= IV[i]
+	}
+
+	for roundNum := 0; roundNum < 8; roundNum++ {
+		for i := 0; i < unitSize; i++ {
+			res[oShift+i] ^= roundKeys[roundNum][0][i]
+			res[oShift+i] = roundKeys[roundNum][1][res[oShift+i]]
+			if i < unitSize-1 {
+				res[oShift+i+1] ^= res[oShift+i]
+			}
+			id := roundKeys[roundNum][2][i]
+			res[oShift+int(id)] ^= res[oShift+i]
+		}
+	}
+}

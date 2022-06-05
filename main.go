@@ -1,5 +1,10 @@
 package main
 
+import (
+	"crypto/rand"
+	"math/big"
+)
+
 func main() {
 	//start := time.Now()
 	//message, _ := rand.Int(rand.Reader, new(big.Int).Exp(big.NewInt(2), big.NewInt(1000), nil))
@@ -14,5 +19,10 @@ func main() {
 	//log.Printf("Execution time %s", elapsed)
 
 	fk := newFrogKeys(32)
-	println(fk.key)
+	message, _ := rand.Int(rand.Reader, new(big.Int).Exp(big.NewInt(2), big.NewInt(1000), nil))
+	println("Message: ", message.Text(10))
+	enc := Encrypt(fk, message.Bytes())
+	println("Encrypted: ", new(big.Int).SetBytes(enc).Text(10))
+	dec := Decrypt(fk, message.Bytes())
+	println("Decrypted: ", new(big.Int).SetBytes(dec).Text(10))
 }

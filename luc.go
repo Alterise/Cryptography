@@ -108,10 +108,10 @@ func calculateLucas(n, P, m []byte) *big.Int {
 	return curr
 }
 
-func generateKeys(message []byte) (LucKey, LucKey) {
-	messageInternal := new(big.Int).SetBytes(message)
-	min := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(len(message)*4)), nil)
-	max := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(len(message)*4)+1), nil)
+func generateKeys(data []byte) (LucKey, LucKey) {
+	dataInternal := new(big.Int).SetBytes(data)
+	min := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(len(data)*4)), nil)
+	max := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(len(data)*4)+1), nil)
 
 	p := generatePrimeBigInt(min, max)
 	q := generatePrimeBigInt(min, max)
@@ -129,7 +129,7 @@ func generateKeys(message []byte) (LucKey, LucKey) {
 	for e, _ = rand.Int(rand.Reader, N); gcd.GCD(nil, nil, mul, e).Cmp(one) != 0; e, _ = rand.Int(rand.Reader, N) {
 	}
 
-	D := calculateD(messageInternal)
+	D := calculateD(dataInternal)
 	Dp := legendre(D, p)
 	Dq := legendre(D, q)
 	S := funcS(p, q, Dp, Dq)
