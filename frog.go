@@ -17,13 +17,13 @@ type FrogKeys struct {
 	unitSize         int
 }
 
-func newFrogKeys(size int) *FrogKeys {
+func newFrogKeys() *FrogKeys {
 	frogKeys := new(FrogKeys)
-	frogKeys.key = make([]byte, size)
-	frogKeys.unitSize = size
+	frogKeys.unitSize = 16
+	frogKeys.key = make([]byte, 16)
 	rand.Read(frogKeys.key)
-	frogKeys.encryptRoundKeys = generateKey(frogKeys.key, EncryptOrder, size)
-	frogKeys.decryptRoundKeys = generateKey(frogKeys.key, DecryptOrder, size)
+	frogKeys.encryptRoundKeys = generateKey(frogKeys.key, EncryptOrder, 16)
+	frogKeys.decryptRoundKeys = generateKey(frogKeys.key, DecryptOrder, 16)
 	return frogKeys
 }
 
@@ -88,7 +88,6 @@ func generateKey(key []byte, order int, unitSize int) [][][]byte {
 	expandedMasterKey := expandKey(MasterKey, 2304)
 	expandedKey = new(big.Int).Xor(new(big.Int).SetBytes(expandedKey), new(big.Int).SetBytes(expandedMasterKey)).Bytes()
 	preliminaryExpandedKey := FormatExpandedKey(expandedKey, EncryptOrder)
-	//println(expandedKey, expandedMasterKey)
 	IV := make([]byte, unitSize)
 	copy(IV, expandedKey[:unitSize])
 	IV[0] ^= byte(len(key))
@@ -182,8 +181,8 @@ func FormatExpandedKey(key []byte, order int) [][][]byte {
 func TransformEmptyText(key [][][]byte, IV []byte, unitSize int) []byte {
 	unitCount := 2304 / unitSize
 	buf := make([]byte, unitSize)
-	res := make([]byte, unitSize)
-	for i := 0; i <= unitCount; i++ {
+	res := make([]byte, 2304)
+	for i := 0; i < unitCount; i++ {
 		EncryptCBC(buf, IV, key, 0, res, i*unitSize, unitSize)
 	}
 	return res

@@ -18,11 +18,11 @@ func main() {
 	//elapsed := time.Since(start)
 	//log.Printf("Execution time %s", elapsed)
 
-	fk := newFrogKeys(32)
+	fk := newFrogKeys()
 	message, _ := rand.Int(rand.Reader, new(big.Int).Exp(big.NewInt(2), big.NewInt(1000), nil))
 	println("Message: ", message.Text(10))
 	enc := Encrypt(fk, message.Bytes())
 	println("Encrypted: ", new(big.Int).SetBytes(enc).Text(10))
-	dec := Decrypt(fk, message.Bytes())
+	dec := Decrypt(fk, enc)
 	println("Decrypted: ", new(big.Int).SetBytes(dec).Text(10))
 }
