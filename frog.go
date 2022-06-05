@@ -17,13 +17,15 @@ type FrogKeys struct {
 	unitSize         int
 }
 
-func newFrogKeys() *FrogKeys {
+func newFrogKeys(keyLength int) *FrogKeys {
 	frogKeys := new(FrogKeys)
 	frogKeys.unitSize = 16
-	frogKeys.key = make([]byte, 16)
+	//FIXME:
+	frogKeys.key = make([]byte, keyLength)
 	rand.Read(frogKeys.key)
-	frogKeys.encryptRoundKeys = generateKey(frogKeys.key, EncryptOrder, 16)
-	frogKeys.decryptRoundKeys = generateKey(frogKeys.key, DecryptOrder, 16)
+	//frogKeys.key = []byte{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1}
+	frogKeys.encryptRoundKeys = generateKey(frogKeys.key, EncryptOrder, frogKeys.unitSize)
+	frogKeys.decryptRoundKeys = generateKey(frogKeys.key, DecryptOrder, frogKeys.unitSize)
 	return frogKeys
 }
 
@@ -56,9 +58,9 @@ func Encrypt(keys *FrogKeys, data []byte) []byte {
 			res[i] = keys.encryptRoundKeys[roundNum][1][res[i]]
 			if i < keys.unitSize-1 {
 				res[i+1] ^= res[i]
-				id := keys.encryptRoundKeys[roundNum][2][i]
-				res[id] ^= res[i]
 			}
+			id := keys.encryptRoundKeys[roundNum][2][i]
+			res[id] ^= res[i]
 		}
 	}
 	return res
@@ -86,10 +88,11 @@ func Decrypt(keys *FrogKeys, data []byte) []byte {
 func generateKey(key []byte, order int, unitSize int) [][][]byte {
 	expandedKey := expandKey(key, 2304)
 	expandedMasterKey := expandKey(MasterKey, 2304)
+	//FIXME:
 	expandedKey = new(big.Int).Xor(new(big.Int).SetBytes(expandedKey), new(big.Int).SetBytes(expandedMasterKey)).Bytes()
 	preliminaryExpandedKey := FormatExpandedKey(expandedKey, EncryptOrder)
 	IV := make([]byte, unitSize)
-	copy(IV, expandedKey[:unitSize])
+	copy(IV, expandedKey[:unitSize-1])
 	IV[0] ^= byte(len(key))
 	res := TransformEmptyText(preliminaryExpandedKey, IV, unitSize)
 	return FormatExpandedKey(res, order)
@@ -110,11 +113,12 @@ func FormatKey(key []byte) {
 	}
 
 	prevId := 0
-	var currentId int
+	var currId int
 	for i := range key {
-		currentId = (prevId + int(key[i])) % len(U)
-		key[i] = U[currentId]
-		U = append(U[:currentId], U[currentId+1:]...)
+		currId = (prevId + int(key[i])) % len(U)
+		prevId = currId
+		key[i] = U[currId]
+		U = append(U[:currId], U[currId+1:]...)
 	}
 }
 
@@ -124,8 +128,8 @@ func ReverseKey(key []byte) {
 	}
 }
 
-func connectElements(key []byte) {
-	isConnected := make([]bool, len(key))
+func connectElements(permutation []byte) {
+	isConnected := make([]bool, len(permutation))
 	for i := range isConnected {
 		isConnected[i] = false
 	}
@@ -133,7 +137,7 @@ func connectElements(key []byte) {
 	id := 0
 	for {
 		isConnected[id] = true
-		if isConnected[key[id]] {
+		if isConnected[permutation[id]] {
 			nextNotConnected := -1
 			for i := range isConnected {
 				if isConnected[i] == false {
@@ -142,13 +146,13 @@ func connectElements(key []byte) {
 				}
 			}
 			if nextNotConnected == -1 {
-				key[id] = 0
+				permutation[id] = 0
 				break
 			} else {
-				key[id] = byte(nextNotConnected)
+				permutation[id] = byte(nextNotConnected)
 			}
 		}
-		id = int(key[id])
+		id = int(permutation[id])
 	}
 }
 
@@ -159,12 +163,17 @@ func FormatExpandedKey(key []byte, order int) [][][]byte {
 		keyComponent2 := make([]byte, 256)
 		keyComponent3 := make([]byte, 16)
 		currentId := i * 288
+		//FIXME: мб
 		copy(keyComponent1, key[currentId:currentId+15])
 		copy(keyComponent2, key[currentId+16:currentId+271])
 		copy(keyComponent3, key[currentId+272:currentId+287])
+
 		FormatKey(keyComponent2)
+
 		if order == DecryptOrder {
+			//println("1 ", new(big.Int).SetBytes(keyComponent2).Text(10))
 			ReverseKey(keyComponent2)
+			//println("2 ", new(big.Int).SetBytes(keyComponent2).Text(10))
 		}
 		FormatKey(keyComponent3)
 		connectElements(keyComponent3)
@@ -189,7 +198,8 @@ func TransformEmptyText(key [][][]byte, IV []byte, unitSize int) []byte {
 }
 
 func EncryptCBC(buf []byte, IV []byte, roundKeys [][][]byte, iShift int, res []byte, oShift int, unitSize int) {
-	copy(buf[iShift:iShift+unitSize], res[oShift:oShift+unitSize])
+	//FIXME: мб
+	copy(buf[iShift:iShift+unitSize-1], res[oShift:oShift+unitSize-1])
 
 	for i := 0; i < unitSize; i++ {
 		res[i] ^= IV[i]
@@ -197,6 +207,7 @@ func EncryptCBC(buf []byte, IV []byte, roundKeys [][][]byte, iShift int, res []b
 
 	for roundNum := 0; roundNum < 8; roundNum++ {
 		for i := 0; i < unitSize; i++ {
+			//FIXME: мб нейминг
 			res[oShift+i] ^= roundKeys[roundNum][0][i]
 			res[oShift+i] = roundKeys[roundNum][1][res[oShift+i]]
 			if i < unitSize-1 {
