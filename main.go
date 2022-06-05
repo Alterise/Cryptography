@@ -28,4 +28,8 @@ func main() {
 	println("Encrypted: ", new(big.Int).SetBytes(enc).Text(10))
 	dec := Decrypt(fk, enc)
 	println("Decrypted: ", new(big.Int).SetBytes(dec).Text(10))
+
+	ad := []byte{1, 2, 3}
+	addPadding(ad, 8)
+	println(ad)
 }
