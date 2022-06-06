@@ -48,15 +48,18 @@ func Encrypt(keys *FrogKeys, data []byte) []byte {
 	res := make([]byte, len(data))
 	copy(res, data)
 
+	unitCount := len(res) / keys.unitSize
 	for roundNum := 0; roundNum < 8; roundNum++ {
-		for i := 0; i < keys.unitSize; i++ {
-			res[i] ^= keys.encryptRoundKeys[roundNum][0][i]
-			res[i] = keys.encryptRoundKeys[roundNum][1][res[i]]
-			if i < keys.unitSize-1 {
-				res[i+1] ^= res[i]
+		for j := 0; j < unitCount; j++ {
+			for i := 0; i < keys.unitSize; i++ {
+				res[i+j*keys.unitSize] ^= keys.encryptRoundKeys[roundNum][0][i]
+				res[i+j*keys.unitSize] = keys.encryptRoundKeys[roundNum][1][res[i+j*keys.unitSize]]
+				if i < keys.unitSize-1 {
+					res[i+1+j*keys.unitSize] ^= res[i+j*keys.unitSize]
+				}
+				id := keys.encryptRoundKeys[roundNum][2][i]
+				res[int(id)+j*keys.unitSize] ^= res[i+j*keys.unitSize]
 			}
-			id := keys.encryptRoundKeys[roundNum][2][i]
-			res[id] ^= res[i]
 		}
 	}
 	return res
@@ -66,16 +69,18 @@ func Decrypt(keys *FrogKeys, data []byte) []byte {
 	res := make([]byte, len(data))
 	copy(res, data)
 
+	unitCount := len(res) / keys.unitSize
 	for roundNum := 7; roundNum >= 0; roundNum-- {
-		for i := keys.unitSize - 1; i >= 0; i-- {
-			id := keys.decryptRoundKeys[roundNum][2][i]
-			res[id] ^= res[i]
-			if i < keys.unitSize-1 {
-				res[i+1] ^= res[i]
+		for j := 0; j < unitCount; j++ {
+			for i := keys.unitSize - 1; i >= 0; i-- {
+				id := keys.decryptRoundKeys[roundNum][2][i]
+				res[int(id)+j*keys.unitSize] ^= res[i+j*keys.unitSize]
+				if i < keys.unitSize-1 {
+					res[i+1+j*keys.unitSize] ^= res[i+j*keys.unitSize]
+				}
+				res[i+j*keys.unitSize] = keys.decryptRoundKeys[roundNum][1][res[i+j*keys.unitSize]]
+				res[i+j*keys.unitSize] ^= keys.decryptRoundKeys[roundNum][0][i]
 			}
-			res[i] = keys.decryptRoundKeys[roundNum][1][res[i]]
-			res[i] ^= keys.decryptRoundKeys[roundNum][0][i]
-
 		}
 	}
 	return res
@@ -84,13 +89,12 @@ func Decrypt(keys *FrogKeys, data []byte) []byte {
 func generateKey(key []byte, order int, unitSize int) [][][]byte {
 	expandedKey := expandKey(key, 2304)
 	expandedMasterKey := expandKey(MasterKey, 2304)
-	//FIXME:
 	expandedKey = new(big.Int).Xor(new(big.Int).SetBytes(expandedKey), new(big.Int).SetBytes(expandedMasterKey)).Bytes()
 	preliminaryExpandedKey := FormatExpandedKey(expandedKey, EncryptOrder)
 	IV := make([]byte, unitSize)
 	copy(IV, expandedKey[:unitSize])
 	IV[0] ^= byte(len(key))
-	res := TransformEmptyText(preliminaryExpandedKey, IV, unitSize)
+	res := FormatEmptyArray(preliminaryExpandedKey, IV, unitSize)
 	return FormatExpandedKey(res, order)
 }
 
@@ -119,9 +123,6 @@ func FormatKey(key []byte) {
 }
 
 func ReverseKey(key []byte) []byte {
-	//for i := 0; i < len(key)/2; i++ {
-	//	key[i], key[len(key)-1-i] = key[len(key)-1-i], key[i]
-	//}
 	res := make([]byte, len(key))
 	for i := range key {
 		res[key[i]] = byte(i)
@@ -164,7 +165,6 @@ func FormatExpandedKey(key []byte, order int) [][][]byte {
 		keyComponent2 := make([]byte, 256)
 		keyComponent3 := make([]byte, 16)
 		currentId := i * 288
-		//FIXME: мб
 		copy(keyComponent1, key[currentId:currentId+16])
 		copy(keyComponent2, key[currentId+16:currentId+272])
 		copy(keyComponent3, key[currentId+272:currentId+288])
@@ -186,18 +186,17 @@ func FormatExpandedKey(key []byte, order int) [][][]byte {
 	return res
 }
 
-func TransformEmptyText(key [][][]byte, IV []byte, unitSize int) []byte {
+func FormatEmptyArray(key [][][]byte, IV []byte, unitSize int) []byte {
 	unitCount := 2304 / unitSize
 	buf := make([]byte, unitSize)
 	res := make([]byte, 2304)
 	for i := 0; i < unitCount; i++ {
-		EncryptCBC(buf, IV, key, 0, res, i*unitSize, unitSize)
+		EncryptUnit(buf, IV, key, 0, res, i*unitSize, unitSize)
 	}
 	return res
 }
 
-func EncryptCBC(buf []byte, IV []byte, roundKeys [][][]byte, iShift int, res []byte, oShift int, unitSize int) {
-	//FIXME: мб
+func EncryptUnit(buf []byte, IV []byte, roundKeys [][][]byte, iShift int, res []byte, oShift int, unitSize int) {
 	copy(buf[iShift:iShift+unitSize], res[oShift:oShift+unitSize])
 
 	for i := 0; i < unitSize; i++ {
@@ -206,7 +205,6 @@ func EncryptCBC(buf []byte, IV []byte, roundKeys [][][]byte, iShift int, res []b
 
 	for roundNum := 0; roundNum < 8; roundNum++ {
 		for i := 0; i < unitSize; i++ {
-			//FIXME: мб нейминг
 			res[oShift+i] ^= roundKeys[roundNum][0][i]
 			res[oShift+i] = roundKeys[roundNum][1][res[oShift+i]]
 			if i < unitSize-1 {
